@@ -1,2 +1,3 @@
-github.com/wapc/tinygo-msgpack v0.1.3 h1:DeA1g+e10P8/oLWwMYk76eeasjBTgM7Ba7RWT+DWrxU=
-github.com/wapc/tinygo-msgpack v0.1.3/go.mod h1:V/pxYvnkvec6Pp3xf8owwUC1crJ68P66QV9djLqz2Gs=
+github.com/google/go-cmp v0.5.8/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
+golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4/go.mod h1:jJ57K6gSWd91VN4djpZkiMVwK6gcyfeH4XE8wZrZaV4=
+golang.org/x/tools v0.1.12/go.mod h1:hNGJHUnrk76NpqgfD5Aqm5Crs+Hm0VOH/i9J2+nxYbc=

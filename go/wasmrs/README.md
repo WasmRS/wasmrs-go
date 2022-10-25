@@ -151,5 +151,5 @@ go run cmd/fbp/host/main.go
 
 ```
 tinygo build -o cmd/greeter/main.wasm -scheduler=none -target wasi -no-debug cmd/greeter/main.go
-go test -benchmem -run=^$ -bench ^BenchmarkInvoke$ github.com/WasmRS/wasmrs-go/testing -count=1
+go test -benchmem -run=^$ -bench ^BenchmarkInvoke$ github.com/nanobus/iota/go/wasmrs/testing -count=1
 ```
