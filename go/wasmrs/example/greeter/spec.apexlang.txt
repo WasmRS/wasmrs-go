@@ -1,0 +1,16 @@
+namespace "concat"
+
+component Greeter {
+  inputs {
+    name: string
+  }
+  outputs {
+    message: string
+  }
+}
+
+interface Greeter {
+  greet(name: string) string
+}
+
+func greet(name: string) string

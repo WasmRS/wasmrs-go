@@ -1,0 +1,6 @@
+ll *.wasm
+echo '{"firstName": "Practical", "lastName": "WebAssembly"}' | \
+wasmrs invoke "flow.v1" "flow" *.wasm \
+
+echo '{"firstName": "Practical", "lastName": "WebAssembly"}' | \
+wasmrs invoke --verbose "flow.v1" "flow" *.wasm

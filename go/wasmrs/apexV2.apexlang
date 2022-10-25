@@ -1,0 +1,158 @@
+namespace "apexlang.v2"
+
+alias TypeRef = string
+alias Value   = string
+
+type Document @root {
+  description: string?     @docs
+  namespace:   Namespace   @keyword("namespace")
+  imports:     [Import]    @keyword("import")
+  directives:  [Directive] @keyword("directive")
+  shapes:      [Shape]     @keyword("shape")
+  aliases:     [Alias]     @keyword("alias")
+  unions:      [Union]     @keyword("union")
+  functions:   [Operation] @keyword("func")
+  types:       [Type]      @keyword("type")
+  interfaces:  [Interface] @keyword("interface")
+  components:  [Group] # User-defined components
+}
+
+type Import {
+  names: [ImportRef] @body(open: "{", close: "}", or: "*")
+                     @delimiters([",", "\n"])
+                     @after("from")
+  from:  string      @quoted
+}
+
+type ImportRef {
+  name: string
+  as:   string? @before("as")
+}
+
+type Shape @body(open: "{", close: "}") {
+  description: string? @docs
+  name:        string
+  fields:      [Name]  @keyword("field") @or("*")
+  operations:  [Name]  @keyword("operation") @or("*")
+  groups:      [Shape] @keyword("group") @or("*")
+}
+
+type Name {
+  description: string?  @docs
+  name:        string   @quoted
+}
+
+type Type @body(open: "{", close: "}") {
+  description: string?     @docs
+  name:        string
+  fields:      [Field]
+}
+
+type Interface @body(open: "{", close: "}") {
+  description: string?     @docs
+  name:        string
+  operations:  [Operation]
+}
+
+type Group @body(open: "{", close: "}") {
+  description: string?     @docs
+  name:        string
+  fields:      [Field]     @detect([":"])
+  operations:  [Operation] @detect(["(", "["])
+  groups:      [Group]     @detect(["{"])
+}
+
+type Namespace {
+  description: string? @docs
+  name:        string  @quoted
+}
+
+type Alias {
+  description: string? @docs
+  name:        string  @after("=")
+  type:        TypeRef
+}
+
+type Operation {
+  description: string?      @docs
+  name:        string
+  parameters:  [Parameter]? @body(open: "(", close: ")")
+                            @delimiters([",", "\n"])
+  unary:       Parameter?   @body(open: "[", close: "]")
+  returns:     TypeRef      @before(":")
+  annotations: [Annotation] @before("@")
+}
+
+type Parameter {
+  description:  string?      @docs
+  name:         string       @after(":")
+  type:         TypeRef
+  defaultValue: Value?       @before("=")
+  annotations:  [Annotation] @prefix("@")
+}
+
+type Field {
+  description:  string?      @docs
+  name:         string       @after(":")
+  type:         TypeRef
+  defaultValue: Value?       @before("=")
+  annotations:  [Annotation] @prefix("@")
+}
+
+type Union {
+  description: string?   @docs
+  name:        string    @after("=")
+  types:       [TypeRef] @delimiters(["|"])
+}
+
+type Enum {
+  description: string?     @docs
+  name:        string
+  values:      [EnumValue]
+}
+
+type EnumValue {
+  description: string? @docs
+  name:        string  @after("=")
+  index:       u64
+  display:     string? @before("as")
+}
+
+type Directive {
+  description: string?             @docs
+  name:        string              @prefix("@")
+  parameters:  [Parameter]?        @body(open: "(", close: ")")
+                                   @delimiters([",", "\n"])
+                                   @after("on")
+  locations:   [DirectiveLocation] @delimiters(["|"])
+  require:     Require?            @keyword("require")
+}
+
+enum DirectiveLocation {
+  NAMESPACE  = 0
+  ALIAS      = 1
+  UNION      = 2
+  ENUM       = 3
+  ENUM_VALUE = 4
+  TYPE       = 5
+  FIELD      = 6
+  INTERFACE  = 7
+  OPERATION  = 8
+  PARAMETER  = 9
+}
+
+type Require {
+  directive: string              @prefix("@") @after("on")
+  locations: [DirectiveLocation] @delimiters(["|"])
+}
+
+type Annotation {
+  name:      string
+  arguments: [Argument] @body(open: "(", close: ")")
+                        @delimiters([",", "\n"])
+}
+
+type Argument {
+  name:  string @after(":")
+  value: Value
+}

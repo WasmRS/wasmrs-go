@@ -1,0 +1,21 @@
+namespace "concat"
+
+component Concat {
+  inputs {
+    value: Strings
+  }
+  outputs {
+    value: string
+  }
+}
+
+type Strings {
+  left: string
+  right: string
+}
+
+interface Concat {
+  concat{strings: Strings}: string
+}
+
+func concat{strings: Strings}: string
