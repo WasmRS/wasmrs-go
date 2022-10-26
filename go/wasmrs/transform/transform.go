@@ -342,6 +342,22 @@ func StringEncode[T ~string](val T) (payload.Payload, error) {
 	return payload.New(buf), nil
 }
 
+func SliceDecode[T any, P MsgPackCodecPtr[T]](raw payload.Payload) ([]T, error) {
+	decoder := msgpack.NewDecoder(raw.Data())
+	size, _ := decoder.ReadArraySize()
+	items := make([]T, size)
+	i := 0
+	for size > 0 {
+		size--
+		var item T
+		p := (P)(&item)
+		p.Decode(&decoder)
+		items[i] = item
+		i++
+	}
+	return items, nil
+}
+
 func SliceEncode[T any, P MsgPackCodecPtr[T]](items []T) (payload.Payload, error) {
 	sizer := msgpack.NewSizer()
 	sizer.WriteArraySize(uint32(len(items)))
