@@ -264,7 +264,11 @@ func (d *Decoder) ReadUint64() (uint64, error) {
 	if isFixedInt(prefix) {
 		return uint64(prefix), nil
 	} else if isNegativeFixedInt(prefix) {
-		return 0, ReadError{"bad prefix for uint64"}
+		v := int8(prefix)
+		if v < 0 {
+			return 0, ReadError{"bad prefix for uint"}
+		}
+		return uint64(v), err
 	}
 	switch prefix {
 	case FormatUint8:
@@ -279,8 +283,32 @@ func (d *Decoder) ReadUint64() (uint64, error) {
 	case FormatUint64:
 		v, err := d.reader.GetUint64()
 		return uint64(v), err
+	case FormatInt8:
+		v, err := d.reader.GetInt8()
+		if v < 0 {
+			return 0, ReadError{"bad prefix for uint"}
+		}
+		return uint64(v), err
+	case FormatInt16:
+		v, err := d.reader.GetInt16()
+		if v < 0 {
+			return 0, ReadError{"bad prefix for uint"}
+		}
+		return uint64(v), err
+	case FormatInt32:
+		v, err := d.reader.GetInt32()
+		if v < 0 {
+			return 0, ReadError{"bad prefix for uint"}
+		}
+		return uint64(v), err
+	case FormatInt64:
+		v, err := d.reader.GetInt64()
+		if v < 0 {
+			return 0, ReadError{"bad prefix for uint"}
+		}
+		return uint64(v), err
 	default:
-		return 0, ReadError{"bad prefix for uint64"}
+		return 0, ReadError{"bad prefix for uint"}
 	}
 }
 
