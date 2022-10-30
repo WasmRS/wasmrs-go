@@ -10,6 +10,8 @@ import (
 )
 
 const (
+	i32 = api.ValueTypeI32
+
 	functionStart = "_start"
 	functionInit  = "wasmrs_init"
 )
@@ -40,9 +42,7 @@ func New(ctx context.Context) (*Host, error) {
 		return nil, err
 	}
 
-	_, err := wasmrs(r.NewHostModuleBuilder("wasmrs")).
-		Instantiate(ctx, r)
-	if err != nil {
+	if _, err := instantiateWasmrs(ctx, r); err != nil {
 		return nil, err
 	}
 
@@ -73,18 +73,46 @@ func (m *Module) Instantiate(ctx context.Context) (*Instance, error) {
 	return NewInstance(ctx, module)
 }
 
-func wasmrs(builder wazero.HostModuleBuilder) wazero.HostModuleBuilder {
-	return builder.
-		ExportFunction("__init_buffers", func(ctx context.Context, m api.Module, sendPtr, recvPtr uint32) {
-			i := ctx.Value(instanceKey{}).(*Instance)
-			i.setBuffers(sendPtr, recvPtr)
-		}).
-		ExportFunction("__op_list", func(ctx context.Context, m api.Module, opPtr uint32, opSize uint32) {
-			i := ctx.Value(instanceKey{}).(*Instance)
-			i.opList(ctx, opPtr, opSize)
-		}).
-		ExportFunction("__send", func(ctx context.Context, m api.Module, recvPos uint32) {
-			i := ctx.Value(instanceKey{}).(*Instance)
-			i.hostSend(ctx, recvPos)
-		})
+func instantiateWasmrs(ctx context.Context, r wazero.Runtime) (api.Closer, error) {
+	return r.NewHostModuleBuilder("wasmrs").
+		NewFunctionBuilder().
+		WithGoFunction(api.GoFunc(initBuffers), []api.ValueType{i32, i32}, []api.ValueType{}).
+		WithParameterNames("send_ptr", "recv_ptr").Export("__init_buffers").
+		NewFunctionBuilder().
+		WithGoFunction(api.GoFunc(opList), []api.ValueType{i32, i32}, []api.ValueType{}).
+		WithParameterNames("op_ptr", "op_size").Export("__op_list").
+		NewFunctionBuilder().
+		WithGoFunction(api.GoFunc(send), []api.ValueType{i32}, []api.ValueType{}).
+		WithParameterNames("recv_pos").Export("__send").
+		Instantiate(ctx, r)
+}
+
+// initBuffers is defined as an api.GoFunc for better performance vs reflection.
+func initBuffers(ctx context.Context, params []uint64) (_ []uint64) {
+	sendPtr, recvPtr := uint32(params[0]), uint32(params[1])
+
+	i := ctx.Value(instanceKey{}).(*Instance)
+	i.setBuffers(sendPtr, recvPtr)
+
+	return
+}
+
+// opList is defined as an api.GoFunc for better performance vs reflection.
+func opList(ctx context.Context, params []uint64) (_ []uint64) {
+	opPtr, opSize := uint32(params[0]), uint32(params[1])
+
+	i := ctx.Value(instanceKey{}).(*Instance)
+	i.opList(ctx, opPtr, opSize)
+
+	return
+}
+
+// send is defined as an api.GoFunc for better performance vs reflection.
+func send(ctx context.Context, params []uint64) (_ []uint64) {
+	recvPos := uint32(params[0])
+
+	i := ctx.Value(instanceKey{}).(*Instance)
+	i.hostSend(ctx, recvPos)
+
+	return
 }

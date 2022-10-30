@@ -8,7 +8,7 @@ import (
 )
 
 func TestRequestPayloadFragment(t *testing.T) {
-	const maxFrameSize = 1024 + FrameHeaderLen + 3
+	const maxFrameSize = uint32(1024 + FrameHeaderLen + 3)
 	data := make([]byte, 1024*1024)
 	metadata := make([]byte, 1024*1024)
 
