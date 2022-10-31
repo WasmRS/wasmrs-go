@@ -89,6 +89,7 @@ func (f *Flow[T]) next() {
 		return
 	}
 
+	f.completed = 0
 	step := f.steps[0]
 	awaitables, err := step()
 	if err != nil {
