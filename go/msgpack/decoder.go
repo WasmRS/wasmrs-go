@@ -534,6 +534,8 @@ func (d *Decoder) readBinLength() (uint32, error) {
 		return uint32(prefix & FormatFourLeastSigBitsInByte), nil
 	}
 	switch prefix {
+	case FormatNil:
+		return 0, nil
 	case FormatBin8:
 		v, err := d.reader.GetUint8()
 		return uint32(v), err

@@ -3,5 +3,5 @@ go 1.19
 use (
     ./
     ./types/uuid
-    ./wasmrs/cmd/wasmrs
+    ./transport/wasmrs/cmd/wasmrs
 )
