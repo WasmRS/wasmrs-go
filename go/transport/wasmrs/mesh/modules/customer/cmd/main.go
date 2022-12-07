@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 
+	"github.com/nanobus/iota/go/rx/await"
+	"github.com/nanobus/iota/go/rx/flow"
 	"github.com/nanobus/iota/go/rx/mono"
-	"github.com/nanobus/iota/go/transport/wasmrs/await"
-	"github.com/nanobus/iota/go/transport/wasmrs/flow"
 	"github.com/nanobus/iota/go/transport/wasmrs/guest"
 
 	"github.com/nanobus/iota/go/transport/wasmrs/mesh/modules/concat"

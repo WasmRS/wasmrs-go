@@ -2,9 +2,9 @@ package flow
 
 import (
 	"github.com/nanobus/iota/go/rx"
+	"github.com/nanobus/iota/go/rx/await"
 	"github.com/nanobus/iota/go/rx/flux"
 	"github.com/nanobus/iota/go/rx/mono"
-	"github.com/nanobus/iota/go/transport/wasmrs/await"
 )
 
 type (

@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/nanobus/iota/go/rx"
+	"github.com/nanobus/iota/go/rx/await"
+	"github.com/nanobus/iota/go/rx/flow"
 	"github.com/nanobus/iota/go/rx/flux"
 	"github.com/nanobus/iota/go/rx/mono"
-	"github.com/nanobus/iota/go/transport/wasmrs/await"
-	"github.com/nanobus/iota/go/transport/wasmrs/flow"
 	"github.com/nanobus/iota/go/transport/wasmrs/guest"
 
 	"github.com/nanobus/iota/go/transport/wasmrs/example"
