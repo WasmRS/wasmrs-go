@@ -88,7 +88,7 @@ func instantiateWasmrs(ctx context.Context, r wazero.Runtime) (api.Closer, error
 }
 
 // initBuffers is defined as an api.GoFunc for better performance vs reflection.
-func initBuffers(ctx context.Context, params []uint64) (_ []uint64) {
+func initBuffers(ctx context.Context, params []uint64) {
 	sendPtr, recvPtr := uint32(params[0]), uint32(params[1])
 
 	i := ctx.Value(instanceKey{}).(*Instance)
@@ -98,7 +98,7 @@ func initBuffers(ctx context.Context, params []uint64) (_ []uint64) {
 }
 
 // opList is defined as an api.GoFunc for better performance vs reflection.
-func opList(ctx context.Context, params []uint64) (_ []uint64) {
+func opList(ctx context.Context, params []uint64) {
 	opPtr, opSize := uint32(params[0]), uint32(params[1])
 
 	i := ctx.Value(instanceKey{}).(*Instance)
@@ -108,7 +108,7 @@ func opList(ctx context.Context, params []uint64) (_ []uint64) {
 }
 
 // send is defined as an api.GoFunc for better performance vs reflection.
-func send(ctx context.Context, params []uint64) (_ []uint64) {
+func send(ctx context.Context, params []uint64) {
 	recvPos := uint32(params[0])
 
 	i := ctx.Value(instanceKey{}).(*Instance)

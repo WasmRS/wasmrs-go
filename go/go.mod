@@ -7,7 +7,7 @@ require (
 	github.com/rodaine/table v1.0.1
 	github.com/stretchr/testify v1.8.1
 	github.com/tetratelabs/wabin v0.0.0-20220927005300-3b0fbf39a46a
-	github.com/tetratelabs/wazero v1.0.0-pre.3
+	github.com/tetratelabs/wazero v1.0.0-pre.4
 	golang.org/x/exp v0.0.0-20221025133541-111beb427cde
 )
 
