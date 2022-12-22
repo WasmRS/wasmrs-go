@@ -168,7 +168,7 @@ func (i *Instance) sendLoop() {
 		// in case it changed size via grow/shrink.
 		if pos == 0 {
 			mem := i.m.Memory()
-			buf, _ = mem.Read(ctx, i.sendPtr, i.sendSize)
+			buf, _ = mem.Read(i.sendPtr, i.sendSize)
 		}
 
 		byteCount := f.Size()
@@ -180,7 +180,7 @@ func (i *Instance) sendLoop() {
 			pos = 0
 			count = 0
 			mem := i.m.Memory()
-			buf, _ = mem.Read(ctx, i.sendPtr, i.sendSize)
+			buf, _ = mem.Read(i.sendPtr, i.sendSize)
 		}
 
 		// Encode length and frame data.
@@ -222,13 +222,13 @@ func (i *Instance) Operations() operations.Table {
 }
 
 func (i *Instance) opList(ctx context.Context, opPtr uint32, opSize uint32) {
-	buf, _ := i.m.Memory().Read(ctx, opPtr, opSize)
+	buf, _ := i.m.Memory().Read(opPtr, opSize)
 	operations, _ := operations.FromBytes(buf)
 	i.operations = operations
 }
 
 func (i *Instance) hostSend(ctx context.Context, recvPos uint32) {
-	buffer, _ := i.m.Memory().Read(ctx, i.recvPtr, recvPos)
+	buffer, _ := i.m.Memory().Read(i.recvPtr, recvPos)
 
 	for len(buffer) > 0 {
 		var length [4]byte
