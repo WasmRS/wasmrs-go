@@ -6,6 +6,7 @@ import (
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
+	"github.com/tetratelabs/wazero/imports/assemblyscript"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
@@ -39,6 +40,14 @@ func New(ctx context.Context) (*Host, error) {
 		WithSysNanotime()
 
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r); err != nil {
+		return nil, err
+	}
+
+	// This disables the abort message as no other engines write it.
+	envBuilder := r.NewHostModuleBuilder("env")
+	assemblyscript.NewFunctionExporter().WithAbortMessageDisabled().ExportFunctions(envBuilder)
+	if _, err := envBuilder.Instantiate(ctx, r); err != nil {
+		_ = r.Close(ctx)
 		return nil, err
 	}
 
@@ -93,8 +102,6 @@ func initBuffers(ctx context.Context, params []uint64) {
 
 	i := ctx.Value(instanceKey{}).(*Instance)
 	i.setBuffers(sendPtr, recvPtr)
-
-	return
 }
 
 // opList is defined as an api.GoFunc for better performance vs reflection.
@@ -103,8 +110,6 @@ func opList(ctx context.Context, params []uint64) {
 
 	i := ctx.Value(instanceKey{}).(*Instance)
 	i.opList(ctx, opPtr, opSize)
-
-	return
 }
 
 // send is defined as an api.GoFunc for better performance vs reflection.
@@ -113,6 +118,4 @@ func send(ctx context.Context, params []uint64) {
 
 	i := ctx.Value(instanceKey{}).(*Instance)
 	i.hostSend(ctx, recvPos)
-
-	return
 }
