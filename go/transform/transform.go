@@ -7,6 +7,8 @@ import (
 	"github.com/nanobus/iota/go/msgpack"
 	"github.com/nanobus/iota/go/payload"
 	"github.com/nanobus/iota/go/rx"
+	"github.com/nanobus/iota/go/rx/flux"
+	"github.com/nanobus/iota/go/rx/mono"
 )
 
 type Transform[T any] struct {
@@ -416,4 +418,30 @@ func InterfaceEncode[T any](tracker *invoke.LiveInstances[T]) rx.Transform[T, pa
 		encoder.WriteUint64(handle)
 		return payload.New(buf), nil
 	}
+}
+
+func FluxToVoid[T any](f flux.Flux[T]) mono.Void {
+	return mono.Create(func(sink mono.Sink[struct{}]) {
+		f.Subscribe(flux.Subscribe[T]{
+			OnComplete: func() {
+				sink.Success(struct{}{})
+			},
+			OnError: func(err error) {
+				sink.Error(err)
+			},
+		})
+	})
+}
+
+func FluxToMono[T any](f flux.Flux[T]) mono.Mono[T] {
+	return mono.Create(func(sink mono.Sink[T]) {
+		f.Subscribe(flux.Subscribe[T]{
+			OnNext: func(val T) {
+				sink.Success(val)
+			},
+			OnError: func(err error) {
+				sink.Error(err)
+			},
+		})
+	})
 }
