@@ -10,13 +10,13 @@ require (
 
 require (
 	github.com/fatih/color v1.13.0 // indirect
-	github.com/mattn/go-colorable v0.1.9 // indirect
-	github.com/mattn/go-isatty v0.0.14 // indirect
-	github.com/rodaine/table v1.0.1 // indirect
-	github.com/tetratelabs/wazero v1.0.0-pre.4 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/rodaine/table v1.1.0 // indirect
+	github.com/tetratelabs/wazero v1.0.0-pre.8 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
-	golang.org/x/exp v0.0.0-20221025133541-111beb427cde // indirect
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	golang.org/x/exp v0.0.0-20221230185412-738e83a70c30 // indirect
+	golang.org/x/sys v0.3.0 // indirect
 )
 
 replace github.com/nanobus/iota/go => ../../../../

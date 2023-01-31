@@ -46,7 +46,7 @@ func New(ctx context.Context) (*Host, error) {
 	// This disables the abort message as no other engines write it.
 	envBuilder := r.NewHostModuleBuilder("env")
 	assemblyscript.NewFunctionExporter().WithAbortMessageDisabled().ExportFunctions(envBuilder)
-	if _, err := envBuilder.Instantiate(ctx, r); err != nil {
+	if _, err := envBuilder.Instantiate(ctx); err != nil {
 		_ = r.Close(ctx)
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func instantiateWasmrs(ctx context.Context, r wazero.Runtime) (api.Closer, error
 		NewFunctionBuilder().
 		WithGoFunction(api.GoFunc(send), []api.ValueType{i32}, []api.ValueType{}).
 		WithParameterNames("recv_pos").Export("__send").
-		Instantiate(ctx, r)
+		Instantiate(ctx)
 }
 
 // initBuffers is defined as an api.GoFunc for better performance vs reflection.
