@@ -1,12 +1,12 @@
 package host
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/tetratelabs/wazero/api"
 
@@ -25,14 +25,12 @@ type Instance struct {
 	ctx       context.Context
 	m         api.Module
 	sendCh    chan frames.Frame
-	recvCh    chan *bytes.Buffer //[]byte
+	recvCh    chan []byte
 	sendFn    api.Function
 	sendPtr   uint32
 	sendSize  uint32
 	recvPtr   uint32
 	streamIDs socket.ServerStreamIDs
-	// streamMu     sync.RWMutex
-	// streams      map[uint32]proxy.Stream
 
 	// Stream IDs on the guest MUST start at 1 and
 	// increment by 2 sequentially, such as 1, 3, 5, 7, etc.
@@ -41,6 +39,11 @@ type Instance struct {
 	// Stream IDs on the host MUST start at 2 and
 	// increment by 2 sequentially, such as 2, 4, 6, 8, etc.
 	hostStreams proxy.Lookup
+
+	activeRequests atomic.Int64
+	closing        atomic.Bool
+	closed         chan struct{}
+	once           sync.Once
 
 	maxFrameSize       uint32
 	fragmentedPayloads map[uint32]fragmentedPayload
@@ -71,16 +74,15 @@ func NewInstance(ctx context.Context, m api.Module) (*Instance, error) {
 		return nil, errors.New("module does not export __wasmrs_send")
 	}
 	i := &Instance{
-		ctx:    ctx,
-		m:      m,
-		sendCh: make(chan frames.Frame, 100),
-		recvCh: make(chan *bytes.Buffer, 100),
-		sendFn: send,
-		// streams: make(map[uint32]proxy.Stream),
-		// streams:            make([]proxy.Stream, 1024*1024),
+		ctx:                ctx,
+		m:                  m,
+		sendCh:             make(chan frames.Frame, 100),
+		recvCh:             make(chan []byte, 100),
+		sendFn:             send,
 		maxFrameSize:       1024 * 1024,
 		fragmentedPayloads: make(map[uint32]fragmentedPayload),
 		sendSize:           16 * 1024,
+		closed:             make(chan struct{}),
 	}
 
 	ctx = context.WithValue(ctx, instanceKey{}, i)
@@ -102,9 +104,24 @@ func NewInstance(ctx context.Context, m api.Module) (*Instance, error) {
 }
 
 func (i *Instance) Close() error {
-	close(i.sendCh)
-	close(i.recvCh)
+	i.once.Do(func() {
+		i.closing.Store(true)
+
+		if i.activeRequests.Load() > 0 {
+			<-i.closed
+		}
+
+		close(i.sendCh)
+		close(i.recvCh)
+	})
+
 	return nil
+}
+
+func (i *Instance) reduceActiveRequests() {
+	if i.activeRequests.Add(-1) <= 0 && i.closing.Load() {
+		close(i.closed)
+	}
 }
 
 func (i *Instance) registerStream(s proxy.Stream) {
@@ -113,10 +130,6 @@ func (i *Instance) registerStream(s proxy.Stream) {
 	} else {
 		i.hostStreams.Add(s)
 	}
-
-	// i.streamMu.Lock()
-	// defer i.streamMu.Unlock()
-	// i.streams[s.StreamID()] = s
 }
 
 func (i *Instance) removeStream(streamID uint32) {
@@ -159,64 +172,21 @@ func (i *Instance) setBuffers(sendPtr, recvPtr uint32) {
 func (i *Instance) sendLoop() {
 	var lengthBytes [4]byte
 	ctx := context.WithValue(i.ctx, instanceKey{}, i)
-	var buf []byte
-	pos := uint32(0)
-	count := 0
 
-	write := func(f frames.Frame) {
-		// Make sure to obtain the buffer
-		// in case it changed size via grow/shrink.
-		if pos == 0 {
-			mem := i.m.Memory()
-			buf, _ = mem.Read(i.sendPtr, i.sendSize)
-		}
-
+	for f := range i.sendCh {
+		mem := i.m.Memory()
+		buf, _ := mem.Read(i.sendPtr, i.sendSize)
 		byteCount := f.Size()
-
-		// if this frame does not fit,
-		// send the buffer and reset.
-		if pos+3+byteCount >= i.sendSize {
-			i.sendFn.Call(ctx, uint64(pos))
-			pos = 0
-			count = 0
-			mem := i.m.Memory()
-			buf, _ = mem.Read(i.sendPtr, i.sendSize)
-		}
 
 		// Encode length and frame data.
 		binary.BigEndian.PutUint32(lengthBytes[:], byteCount)
-		copy(buf[pos:], lengthBytes[1:4])
-		f.Encode(buf[pos+3:])
-		pos += 3 + byteCount
+		copy(buf[0:], lengthBytes[1:4])
+		f.Encode(buf[3:])
 
-		count++
-	}
-
-	for f := range i.sendCh {
-		write(f)
-		loop := true
-		for loop {
-			select {
-			case f := <-i.sendCh:
-				write(f)
-			default:
-				if pos > 0 {
-					i.sendFn.Call(ctx, uint64(pos))
-					pos = 0
-					count = 0
-				}
-				loop = false
-			}
-		}
+		// Send frame data to guest.
+		i.sendFn.Call(ctx, uint64(3+byteCount))
 	}
 }
-
-var buffers = sync.Pool{
-	New: func() interface{} {
-		return new(bytes.Buffer)
-	},
-}
-
 func (i *Instance) Operations() operations.Table {
 	return i.operations
 }
@@ -235,9 +205,8 @@ func (i *Instance) hostSend(ctx context.Context, recvPos uint32) {
 		copy(length[1:4], buffer[0:3])
 		buffer = buffer[3:]
 		frameLength := binary.BigEndian.Uint32(length[0:4])
-		buf := buffers.Get().(*bytes.Buffer)
-		buf.Reset()
-		buf.Write(buffer)
+		buf := make([]byte, int(frameLength))
+		copy(buf, buffer)
 		i.recvCh <- buf
 		buffer = buffer[frameLength:]
 	}
@@ -245,9 +214,7 @@ func (i *Instance) hostSend(ctx context.Context, recvPos uint32) {
 
 func (i *Instance) recvLoop() {
 	for buf := range i.recvCh {
-		i.recvOne(buf.Bytes())
-		buf.Reset()
-		buffers.Put(buf)
+		i.recvOne(buf)
 	}
 }
 
@@ -286,6 +253,7 @@ func (i *Instance) recvOne(data []byte) {
 			return
 		}
 
+		i.activeRequests.Add(1)
 		go i.handleRequestResponse(ctx, rr.StreamID, rr.Data, rr.Metadata)
 
 	case frames.FrameTypeRequestFNF:
@@ -318,6 +286,7 @@ func (i *Instance) recvOne(data []byte) {
 			return
 		}
 
+		i.activeRequests.Add(1)
 		go i.handleRequestStream(ctx, rs.StreamID, rs.Data, rs.Metadata, rs.InitialN)
 
 	case frames.FrameTypeRequestChannel:
@@ -334,6 +303,7 @@ func (i *Instance) recvOne(data []byte) {
 			return
 		}
 
+		i.activeRequests.Add(1)
 		go i.handleRequestChannel(ctx, rc.StreamID, rc.Data, rc.Metadata, rc.InitialN)
 
 	case frames.FrameTypeRequestN:
@@ -442,6 +412,7 @@ func (i *Instance) handleRequestResponse(ctx context.Context, streamID uint32, d
 			StreamID: streamID,
 			Data:     "not_found",
 		})
+		i.reduceActiveRequests()
 		return
 	}
 	p := payload.New(data, metadata)
@@ -454,12 +425,14 @@ func (i *Instance) handleRequestResponse(ctx context.Context, streamID uint32, d
 				Next:     true,
 				Complete: true,
 			})
+			i.reduceActiveRequests()
 		},
 		OnError: func(err error) {
 			i.SendFrame(&frames.Error{
 				StreamID: streamID,
 				Data:     err.Error(),
 			})
+			i.reduceActiveRequests()
 		},
 	})
 }
@@ -511,7 +484,6 @@ func (i *Instance) handleRequestStream(ctx context.Context, streamID uint32, dat
 
 	p := payload.New(data, metadata)
 	s := requestStream{ctx: ctx, streamID: streamID}
-	i.registerStream(&s) // Need to register for RequestN frames
 	f := handlerRS(ctx, p)
 	f.Subscribe(flux.Subscribe[payload.Payload]{
 		OnNext: func(p payload.Payload) {
@@ -527,12 +499,14 @@ func (i *Instance) handleRequestStream(ctx context.Context, streamID uint32, dat
 				StreamID: streamID,
 				Complete: true,
 			})
+			i.reduceActiveRequests()
 		},
 		OnError: func(err error) {
 			i.SendFrame(&frames.Error{
 				StreamID: streamID,
 				Data:     err.Error(),
 			})
+			i.reduceActiveRequests()
 		},
 		NoRequest: true,
 	})
@@ -559,6 +533,7 @@ func (i *Instance) handleRequestChannel(ctx context.Context, streamID uint32, da
 			StreamID: streamID,
 			Data:     "not_found",
 		})
+		i.reduceActiveRequests()
 		return
 	}
 
@@ -578,6 +553,7 @@ func (i *Instance) handleRequestChannel(ctx context.Context, streamID uint32, da
 				i.SendFrame(&frames.Cancel{
 					StreamID: streamID,
 				})
+				i.reduceActiveRequests()
 			},
 		})
 	})
@@ -596,12 +572,14 @@ func (i *Instance) handleRequestChannel(ctx context.Context, streamID uint32, da
 				StreamID: streamID,
 				Complete: true,
 			})
+			i.reduceActiveRequests()
 		},
 		OnError: func(err error) {
 			i.SendFrame(&frames.Error{
 				StreamID: streamID,
 				Data:     err.Error(),
 			})
+			i.reduceActiveRequests()
 		},
 		NoRequest: true,
 	})

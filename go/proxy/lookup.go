@@ -1,12 +1,15 @@
 package proxy
 
-import "sync"
+import (
+	"sync"
+)
 
 type (
 	Lookup struct {
-		mu   sync.Mutex
-		head *node
-		tail *node
+		mu    sync.Mutex
+		count int
+		head  *node
+		tail  *node
 	}
 
 	node struct {
@@ -14,6 +17,20 @@ type (
 		stream     Stream
 	}
 )
+
+func (l *Lookup) Size() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return l.count
+}
+
+func (l *Lookup) IsEmpty() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return l.count == 0
+}
 
 func (l *Lookup) Get(id uint32) (Stream, bool) {
 	if n := l.find(id); n != nil {
@@ -42,6 +59,7 @@ func (l *Lookup) Add(s Stream) {
 		currentNode.next = newNode
 		l.tail = newNode
 	}
+	l.count++
 }
 
 func (l *Lookup) Remove(id uint32) {
@@ -53,6 +71,7 @@ func (l *Lookup) Remove(id uint32) {
 		return
 	}
 
+	l.count--
 	prevNode := nodeToDelete.prev
 	nextNode := nodeToDelete.next
 
