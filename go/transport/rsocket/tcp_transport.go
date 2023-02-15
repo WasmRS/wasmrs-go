@@ -86,21 +86,24 @@ func (t *tcpServerTransport) Listen(ctx context.Context, notifier chan<- bool) (
 		}
 		if err != nil {
 			err = fmt.Errorf("accept next conn failed: %w", err)
-			break
+			continue
 		}
 
 		// Dispatch raw conn.
 		h := handler.New(ctx, handler.ServerMode)
-		tp := NewTransport(NewTCPConn(c), h)
+		tp := NewTransport(NewTCPConn(c), h, true)
 		h.SetFrameSender(func(f frames.Frame) error {
 			return tp.Send(f, true)
 		})
 
 		if t.putTransport(tp) {
 			go tp.Start(ctx)
-			go t.acceptor(ctx, h, func(tp *Transport) {
-				t.removeTransport(tp)
-			})
+			go func() {
+				tp.WaitUntilReady()
+				t.acceptor(ctx, h, func(tp *Transport) {
+					t.removeTransport(tp)
+				})
+			}()
 		} else {
 			_ = t.Close()
 		}
@@ -158,7 +161,7 @@ func NewTCPListenerFactory(network, addr string, tlsConfig *tls.Config) Listener
 
 // NewTCPClientTransport creates new transport.
 func NewTCPClientTransport(c net.Conn, handler DuplexHandler) *Transport {
-	return NewTransport(NewTCPConn(c), handler)
+	return NewTransport(NewTCPConn(c), handler, false)
 }
 
 // NewConnWithAddr creates new connection.

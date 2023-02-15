@@ -50,8 +50,12 @@ func (p *TCPConn) Read() (f frames.Frame, err error) {
 	buffer := raw[frames.FrameHeaderLen:]
 
 	switch header.Type() {
-	// case frames.FrameTypeSetup:
-	// 	// Not implemented
+	case frames.FrameTypeSetup:
+		var setup frames.Setup
+		if err := setup.Decode(&header, buffer); err != nil {
+			return nil, err
+		}
+		return &setup, nil
 
 	case frames.FrameTypeRequestResponse, frames.FrameTypeRequestFNF,
 		frames.FrameTypeRequestStream, frames.FrameTypeRequestChannel:

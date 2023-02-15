@@ -10,7 +10,6 @@ import (
 
 	"github.com/nanobus/iota/go/internal/frames"
 	"github.com/nanobus/iota/go/invoke"
-	"github.com/nanobus/iota/go/operations"
 	"github.com/nanobus/iota/go/payload"
 	"github.com/nanobus/iota/go/proxy"
 	"github.com/nanobus/iota/go/rx"
@@ -61,45 +60,10 @@ func Init(guestBufferSize uint32, hostBufferSize uint32, hostMaxFrameSize uint32
 
 //go:export __wasmrs_op_list_request
 func OperationList() {
-	opers := invoke.GetOperations()
-	exports := opers.Exported
-	imports := opers.Imported
-	numOper := uint32(len(exports.RequestResponse) +
-		len(exports.FireAndForget) +
-		len(exports.RequestStream) +
-		len(exports.RequestChannel) +
-		len(imports.RequestResponse) +
-		len(imports.FireAndForget) +
-		len(imports.RequestStream) +
-		len(imports.RequestChannel))
-
-	list := make(operations.Table, 0, numOper)
-	list = append(list, convertOperations(exports.RequestResponse, operations.RequestResponse, operations.Export)...)
-	list = append(list, convertOperations(exports.FireAndForget, operations.FireAndForget, operations.Export)...)
-	list = append(list, convertOperations(exports.RequestStream, operations.RequestStream, operations.Export)...)
-	list = append(list, convertOperations(exports.RequestChannel, operations.RequestChannel, operations.Export)...)
-	list = append(list, convertOperations(imports.RequestResponse, operations.RequestResponse, operations.Import)...)
-	list = append(list, convertOperations(imports.FireAndForget, operations.FireAndForget, operations.Import)...)
-	list = append(list, convertOperations(imports.RequestStream, operations.RequestStream, operations.Import)...)
-	list = append(list, convertOperations(imports.RequestChannel, operations.RequestChannel, operations.Import)...)
-
+	list := invoke.GetOperationsTable()
 	payload := list.ToBytes()
 
 	opList(bytesToPointer(payload), uint32(len(payload)))
-}
-
-func convertOperations(handlers []invoke.HandlerInfo, requestType operations.RequestType, direction operations.Direction) operations.Table {
-	opers := make(operations.Table, len(handlers))
-	for i, h := range handlers {
-		opers[i] = operations.Operation{
-			Index:     uint32(i),
-			Type:      requestType,
-			Direction: direction,
-			Namespace: h.Namespace,
-			Operation: h.Operation,
-		}
-	}
-	return opers
 }
 
 //go:export __wasmrs_send

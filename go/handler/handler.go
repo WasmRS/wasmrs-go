@@ -9,6 +9,7 @@ import (
 	"github.com/nanobus/iota/go/internal/frames"
 	"github.com/nanobus/iota/go/internal/socket"
 	"github.com/nanobus/iota/go/invoke"
+	"github.com/nanobus/iota/go/operations"
 	"github.com/nanobus/iota/go/payload"
 	"github.com/nanobus/iota/go/proxy"
 	"github.com/nanobus/iota/go/rx"
@@ -39,6 +40,8 @@ type Handler struct {
 	importedRFNF []invoke.FireAndForgetHandler
 	importedRS   []invoke.RequestStreamHandler
 	importedRC   []invoke.RequestChannelHandler
+
+	opTable operations.Table
 }
 
 // type fragmentedPayload struct {
@@ -121,7 +124,14 @@ func (i *Handler) HandleFrame(f frames.Frame) (err error) {
 	}
 
 	switch v := f.(type) {
-	// case *frames.SetupFrame:
+	case *frames.Setup:
+		if i.opTable == nil {
+			opers, err := operations.FromBytes(v.Data)
+			if err != nil {
+				return errors.New("could not read operations list")
+			}
+			i.opTable = opers
+		}
 
 	case *frames.RequestPayload:
 		switch frameType {

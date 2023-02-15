@@ -5,6 +5,7 @@ import (
 
 	"github.com/nanobus/iota/go/internal/frames"
 	"github.com/nanobus/iota/go/invoke"
+	"github.com/nanobus/iota/go/operations"
 	"github.com/nanobus/iota/go/payload"
 	"github.com/nanobus/iota/go/proxy"
 	"github.com/nanobus/iota/go/rx"
@@ -15,19 +16,51 @@ import (
 var _ = (invoke.Caller)((*Handler)(nil))
 
 func (i *Handler) ImportRequestResponse(namespace, operation string) uint32 {
-	return invoke.ImportRequestResponse(namespace, operation)
+	for _, op := range i.opTable {
+		if op.Direction == operations.Export &&
+			op.Type == operations.RequestResponse &&
+			op.Namespace == namespace &&
+			op.Operation == operation {
+			return op.Index
+		}
+	}
+	return 0
 }
 
 func (i *Handler) ImportFireAndForget(namespace, operation string) uint32 {
-	return invoke.ImportFireAndForget(namespace, operation)
+	for _, op := range i.opTable {
+		if op.Direction == operations.Export &&
+			op.Type == operations.FireAndForget &&
+			op.Namespace == namespace &&
+			op.Operation == operation {
+			return op.Index
+		}
+	}
+	return 0
 }
 
 func (i *Handler) ImportRequestStream(namespace, operation string) uint32 {
-	return invoke.ImportRequestStream(namespace, operation)
+	for _, op := range i.opTable {
+		if op.Direction == operations.Export &&
+			op.Type == operations.RequestStream &&
+			op.Namespace == namespace &&
+			op.Operation == operation {
+			return op.Index
+		}
+	}
+	return 0
 }
 
 func (i *Handler) ImportRequestChannel(namespace, operation string) uint32 {
-	return invoke.ImportRequestChannel(namespace, operation)
+	for _, op := range i.opTable {
+		if op.Direction == operations.Export &&
+			op.Type == operations.RequestChannel &&
+			op.Namespace == namespace &&
+			op.Operation == operation {
+			return op.Index
+		}
+	}
+	return 0
 }
 
 func (i *Handler) RequestResponse(ctx context.Context, p payload.Payload) mono.Mono[payload.Payload] {

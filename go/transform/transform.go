@@ -3,6 +3,8 @@ package transform
 import (
 	"time"
 
+	"golang.org/x/exp/constraints"
+
 	"github.com/nanobus/iota/go/invoke"
 	"github.com/nanobus/iota/go/msgpack"
 	"github.com/nanobus/iota/go/payload"
@@ -276,6 +278,21 @@ var Time = Transform[time.Time]{
 	},
 }
 
+var Any = Transform[any]{
+	Decode: func(raw payload.Payload) (any, error) {
+		decoder := msgpack.NewDecoder(raw.Data())
+		val, err := decoder.ReadAny()
+		return val, err
+	},
+	Encode: func(value any) (payload.Payload, error) {
+		buf, err := msgpack.AnyToBytes(value)
+		if err != nil {
+			return nil, err
+		}
+		return payload.New(buf), nil
+	},
+}
+
 var Void = Transform[struct{}]{
 	Decode: func(raw payload.Payload) (struct{}, error) {
 		return struct{}{}, nil
@@ -360,6 +377,36 @@ func Uint64Encode[T ~uint64](val T) (payload.Payload, error) {
 	return payload.New(buf), nil
 }
 
+func Float32Decode[T ~float32](raw payload.Payload) (T, error) {
+	decoder := msgpack.NewDecoder(raw.Data())
+	val, err := decoder.ReadFloat32()
+	return T(val), err
+}
+
+func Float32Encode[T ~float32](val T) (payload.Payload, error) {
+	sizer := msgpack.NewSizer()
+	sizer.WriteFloat32(float32(val))
+	buf := make([]byte, sizer.Len())
+	encoder := msgpack.NewEncoder(buf)
+	encoder.WriteFloat32(float32(val))
+	return payload.New(buf), nil
+}
+
+func Float64Decode[T ~float64](raw payload.Payload) (T, error) {
+	decoder := msgpack.NewDecoder(raw.Data())
+	val, err := decoder.ReadFloat64()
+	return T(val), err
+}
+
+func Float64Encode[T ~float64](val T) (payload.Payload, error) {
+	sizer := msgpack.NewSizer()
+	sizer.WriteFloat64(float64(val))
+	buf := make([]byte, sizer.Len())
+	encoder := msgpack.NewEncoder(buf)
+	encoder.WriteFloat64(float64(val))
+	return payload.New(buf), nil
+}
+
 func StringDecode[T ~string](raw payload.Payload) (T, error) {
 	decoder := msgpack.NewDecoder(raw.Data())
 	val, err := decoder.ReadString()
@@ -375,37 +422,67 @@ func StringEncode[T ~string](val T) (payload.Payload, error) {
 	return payload.New(buf), nil
 }
 
-func SliceDecode[T any, P MsgPackCodecPtr[T]](raw payload.Payload) ([]T, error) {
-	decoder := msgpack.NewDecoder(raw.Data())
-	size, _ := decoder.ReadArraySize()
-	items := make([]T, size)
-	i := 0
-	for size > 0 {
-		size--
-		var item T
-		p := (P)(&item)
-		p.Decode(&decoder)
-		items[i] = item
-		i++
+func ToStringDecode[T any](f func(string) (T, error)) func(raw payload.Payload) (T, error) {
+	return func(raw payload.Payload) (empty T, _ error) {
+		val, err := StringDecode[string](raw)
+		if err != nil {
+			return empty, err
+		}
+		return f(val)
 	}
-	return items, nil
 }
 
-func SliceEncode[T any, P MsgPackCodecPtr[T]](items []T) (payload.Payload, error) {
-	sizer := msgpack.NewSizer()
-	sizer.WriteArraySize(uint32(len(items)))
-	for _, v := range items {
-		p := P(&v)
-		p.Encode(&sizer)
+func ToStringEncode[T any](f func(T) string) func(value T) (payload.Payload, error) {
+	return func(val T) (payload.Payload, error) {
+		str := f(val)
+		return StringEncode(str)
 	}
-	buf := make([]byte, sizer.Len())
-	encoder := msgpack.NewEncoder(buf)
-	encoder.WriteArraySize(uint32(len(items)))
-	for _, v := range items {
-		p := P(&v)
-		p.Encode(&encoder)
+}
+
+func SliceDecode[V any](valF func(msgpack.Reader) (V, error)) func(raw payload.Payload) ([]V, error) {
+	return func(raw payload.Payload) ([]V, error) {
+		decoder := msgpack.NewDecoder(raw.Data())
+		return msgpack.ReadSlice(&decoder, valF)
 	}
-	return payload.New(buf), nil
+}
+
+func SliceEncode[V any](valF func(msgpack.Writer, V)) func([]V) (payload.Payload, error) {
+	return func(m []V) (payload.Payload, error) {
+		sizer := msgpack.NewSizer()
+		if err := msgpack.WriteSlice(&sizer, m, valF); err != nil {
+			return nil, err
+		}
+		buf := make([]byte, sizer.Len())
+		encoder := msgpack.NewEncoder(buf)
+		if err := msgpack.WriteSlice(&encoder, m, valF); err != nil {
+			return nil, err
+		}
+
+		return payload.New(buf), nil
+	}
+}
+
+func MapDecode[K constraints.Ordered, V any](keyF func(msgpack.Reader) (K, error), valF func(msgpack.Reader) (V, error)) func(raw payload.Payload) (map[K]V, error) {
+	return func(raw payload.Payload) (map[K]V, error) {
+		decoder := msgpack.NewDecoder(raw.Data())
+		return msgpack.ReadMap(&decoder, keyF, valF)
+	}
+}
+
+func MapEncode[K constraints.Ordered, V any](keyF func(msgpack.Writer, K), valF func(msgpack.Writer, V)) func(map[K]V) (payload.Payload, error) {
+	return func(m map[K]V) (payload.Payload, error) {
+		sizer := msgpack.NewSizer()
+		if err := msgpack.WriteMap(&sizer, m, keyF, valF); err != nil {
+			return nil, err
+		}
+		buf := make([]byte, sizer.Len())
+		encoder := msgpack.NewEncoder(buf)
+		if err := msgpack.WriteMap(&encoder, m, keyF, valF); err != nil {
+			return nil, err
+		}
+
+		return payload.New(buf), nil
+	}
 }
 
 func InterfaceEncode[T any](tracker *invoke.LiveInstances[T]) rx.Transform[T, payload.Payload] {
@@ -438,6 +515,20 @@ func FluxToMono[T any](f flux.Flux[T]) mono.Mono[T] {
 		f.Subscribe(flux.Subscribe[T]{
 			OnNext: func(val T) {
 				sink.Success(val)
+			},
+			OnError: func(err error) {
+				sink.Error(err)
+			},
+		})
+	})
+}
+
+func MonoToFlux[T any](f mono.Mono[T]) flux.Flux[T] {
+	return flux.Create(func(sink flux.Sink[T]) {
+		f.Subscribe(mono.Subscribe[T]{
+			OnSuccess: func(val T) {
+				sink.Next(val)
+				sink.Complete()
 			},
 			OnError: func(err error) {
 				sink.Error(err)

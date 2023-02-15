@@ -11,6 +11,9 @@ type Decoder struct {
 	reader DataReader
 }
 
+// Ensure `*Decoder` implements `Reader`.
+var _ = (Reader)((*Decoder)(nil))
+
 func NewDecoder(buffer []byte) Decoder {
 	return Decoder{
 		reader: NewDataReader(buffer),

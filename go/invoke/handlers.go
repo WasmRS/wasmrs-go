@@ -3,6 +3,7 @@ package invoke
 import (
 	"context"
 
+	"github.com/nanobus/iota/go/operations"
 	"github.com/nanobus/iota/go/payload"
 	"github.com/nanobus/iota/go/rx/flux"
 	"github.com/nanobus/iota/go/rx/mono"
@@ -66,6 +67,46 @@ func GetOperations() Operations {
 			RequestChannel:  requestChannelImports,
 		},
 	}
+}
+
+func GetOperationsTable() operations.Table {
+	opers := GetOperations()
+	exports := opers.Exported
+	imports := opers.Imported
+	numOper := uint32(len(exports.RequestResponse) +
+		len(exports.FireAndForget) +
+		len(exports.RequestStream) +
+		len(exports.RequestChannel) +
+		len(imports.RequestResponse) +
+		len(imports.FireAndForget) +
+		len(imports.RequestStream) +
+		len(imports.RequestChannel))
+
+	list := make(operations.Table, 0, numOper)
+	list = append(list, convertOperations(exports.RequestResponse, operations.RequestResponse, operations.Export)...)
+	list = append(list, convertOperations(exports.FireAndForget, operations.FireAndForget, operations.Export)...)
+	list = append(list, convertOperations(exports.RequestStream, operations.RequestStream, operations.Export)...)
+	list = append(list, convertOperations(exports.RequestChannel, operations.RequestChannel, operations.Export)...)
+	list = append(list, convertOperations(imports.RequestResponse, operations.RequestResponse, operations.Import)...)
+	list = append(list, convertOperations(imports.FireAndForget, operations.FireAndForget, operations.Import)...)
+	list = append(list, convertOperations(imports.RequestStream, operations.RequestStream, operations.Import)...)
+	list = append(list, convertOperations(imports.RequestChannel, operations.RequestChannel, operations.Import)...)
+
+	return list
+}
+
+func convertOperations(handlers []HandlerInfo, requestType operations.RequestType, direction operations.Direction) operations.Table {
+	opers := make(operations.Table, len(handlers))
+	for i, h := range handlers {
+		opers[i] = operations.Operation{
+			Index:     uint32(i),
+			Type:      requestType,
+			Direction: direction,
+			Namespace: h.Namespace,
+			Operation: h.Operation,
+		}
+	}
+	return opers
 }
 
 func ExportRequestResponse(namespace, operation string, handler RequestResponseHandler) {

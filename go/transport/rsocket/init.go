@@ -6,6 +6,7 @@ import (
 
 	"github.com/nanobus/iota/go/handler"
 	"github.com/nanobus/iota/go/internal/frames"
+	"github.com/nanobus/iota/go/invoke"
 )
 
 func NewServer(acceptor ServerTransportAcceptor) ServerTransport {
@@ -20,8 +21,11 @@ func NewServer(acceptor ServerTransportAcceptor) ServerTransport {
 	return server
 }
 
-func NewClient(ctx context.Context) (*Transport, error) {
-	h := handler.New(ctx, handler.ClientMode)
+func Handler(ctx context.Context) *handler.Handler {
+	return handler.New(ctx, handler.ClientMode)
+}
+
+func NewClient(ctx context.Context, h *handler.Handler) (*Transport, error) {
 	network := getEnvOrDefault("RSOCKET_NETWORK", "tcp")
 	addr := getEnvOrDefault("RSOCKET_ADDRESS", "127.0.0.1:7878")
 	conn, err := NewConnWithAddr(ctx, network, addr, nil)
@@ -37,12 +41,21 @@ func NewClient(ctx context.Context) (*Transport, error) {
 	return t, nil
 }
 
-func Connect() error {
+func Connect(h *handler.Handler) error {
 	ctx := context.Background()
-	t, err := NewClient(ctx)
+	t, err := NewClient(ctx, h)
 	if err != nil {
 		return err
 	}
+
+	// Send operation list in setup frame.
+	list := invoke.GetOperationsTable()
+	payload := list.ToBytes()
+	t.Send(&frames.Setup{
+		MajorVersion: 0,
+		MinorVersion: 2,
+		Data:         payload,
+	}, true)
 
 	return t.Start(ctx)
 }

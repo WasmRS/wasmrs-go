@@ -1,5 +1,11 @@
 package msgpack
 
+import (
+	"time"
+
+	"golang.org/x/exp/constraints"
+)
+
 // Codec is the interface that applies to data structures that can
 // encode to and decode from the MessagPack format.
 type Codec interface {
@@ -164,5 +170,41 @@ func BytesToBytes(value []byte) ([]byte, error) {
 	buffer := make([]byte, sizer.Len())
 	encoder := NewEncoder(buffer)
 	encoder.WriteByteArray(value)
+	return buffer, nil
+}
+
+// TimeToBytes creates a `[]byte` from `value`.
+func TimeToBytes(value time.Time) ([]byte, error) {
+	sizer := NewSizer()
+	sizer.WriteTime(value)
+	buffer := make([]byte, sizer.Len())
+	encoder := NewEncoder(buffer)
+	encoder.WriteTime(value)
+	return buffer, nil
+}
+
+func SliceToBytes[T any](values []T, valF func(Writer, T)) ([]byte, error) {
+	sizer := NewSizer()
+	if err := WriteSlice(&sizer, values, valF); err != nil {
+		return nil, err
+	}
+	buffer := make([]byte, sizer.Len())
+	encoder := NewEncoder(buffer)
+	if err := WriteSlice(&encoder, values, valF); err != nil {
+		return nil, err
+	}
+	return buffer, nil
+}
+
+func MapToBytes[K constraints.Ordered, V any](values map[K]V, keyF func(Writer, K), valF func(Writer, V)) ([]byte, error) {
+	sizer := NewSizer()
+	if err := WriteMap(&sizer, values, keyF, valF); err != nil {
+		return nil, err
+	}
+	buffer := make([]byte, sizer.Len())
+	encoder := NewEncoder(buffer)
+	if err := WriteMap(&encoder, values, keyF, valF); err != nil {
+		return nil, err
+	}
 	return buffer, nil
 }

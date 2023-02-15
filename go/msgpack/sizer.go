@@ -9,6 +9,9 @@ type Sizer struct {
 	length uint32
 }
 
+// Ensure `*Sizer` implements `Writer`.
+var _ = (Writer)((*Sizer)(nil))
+
 func NewSizer() Sizer {
 	return Sizer{}
 }

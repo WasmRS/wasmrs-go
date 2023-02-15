@@ -10,6 +10,9 @@ type Encoder struct {
 	reader DataReader
 }
 
+// Ensure `*Encoder` implements `Writer`.
+var _ = (Writer)((*Encoder)(nil))
+
 func NewEncoder(buffer []byte) Encoder {
 	return Encoder{
 		reader: NewDataReader(buffer),

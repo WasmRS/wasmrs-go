@@ -53,14 +53,18 @@ type Transport struct {
 	maxLifetime time.Duration
 	once        sync.Once
 	handler     DuplexHandler
+	isServer    bool
+	ready       chan struct{}
 }
 
 // NewTransport creates new transport.
-func NewTransport(c Conn, handler DuplexHandler) *Transport {
+func NewTransport(c Conn, handler DuplexHandler, isServer bool) *Transport {
 	t := Transport{
 		conn:        c,
 		maxLifetime: DefaultKeepaliveMaxLifetime,
 		handler:     handler,
+		isServer:    isServer,
+		ready:       make(chan struct{}),
 	}
 	handler.SetFrameSender(t.handler.HandleFrame)
 	return &t
@@ -187,10 +191,25 @@ func (p *Transport) Start(ctx context.Context) error {
 		framesBuffer.Dispose()
 
 		<-done
-		// <-done
 	}()
 
 	go p.loopReadBuffer(ctx, framesBuffer, errChan, done)
+
+	if p.isServer {
+		first, err := p.ReadFirst(ctx)
+		if err != nil {
+			return fmt.Errorf("read first failed: %w", err)
+		}
+		if setup, ok := first.(*frames.Setup); ok {
+			if err := p.handler.HandleFrame(setup); err != nil {
+				return err
+			}
+		} else {
+			return errors.New("expected first frame to be a setup frame")
+		}
+	}
+
+	close(p.ready)
 
 	for {
 		select {
@@ -210,4 +229,8 @@ func (p *Transport) Start(ctx context.Context) error {
 			framesBuffer.Put(f)
 		}
 	}
+}
+
+func (p *Transport) WaitUntilReady() {
+	<-p.ready
 }
